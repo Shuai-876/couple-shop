@@ -1,0 +1,10 @@
+# 裝套件產生的資料夾,很大、不需要上傳(別人 npm install 就會重建)
+node_modules
+
+# 打包輸出
+dist
+
+# 系統/編輯器雜檔
+.DS_Store
+*.log
+.vscode
