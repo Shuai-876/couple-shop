@@ -95,6 +95,25 @@ npm run dev      # 啟動本地網站,會給你一個網址(通常 http://localh
 
 ---
 
+## 六、設定 Email 通知(選用)
+
+讓「女友送出任務申請」會寄信通知你、「你核准申請」會寄信通知她。用免費的 EmailJS,不需要後端。沒設定的話其他功能照常運作,只是不寄信。
+
+1. 到 <https://www.emailjs.com/> 註冊免費帳號(每月 200 封)。
+2. **連結你的 Gmail**:左側 **Email Services** → Add New Service → 選 Gmail → 照指示授權 → 記下 **Service ID**。
+3. **建立範本**:左側 **Email Templates** → Create New Template,設定:
+   - **To Email** 欄位填:`{{to_email}}`
+   - **Subject** 填:`{{title}}`
+   - **Content** 填:`{{message}}`（可在前面加一行 `Hi {{to_name}},`)
+   - 儲存後記下 **Template ID**。
+4. **拿 Public Key**:左側 **Account** → General → 複製 **Public Key**。
+5. 打開本專案 `src/email.js`,把這三個值填進去:`EMAILJS_PUBLIC_KEY`、`EMAILJS_SERVICE_ID`、`EMAILJS_TEMPLATE_ID`。
+6. 存檔後重新 `git push`(會自動重新部署),信件功能就生效了。
+
+> 收信對象是從 Firestore 的 `users` 文件的 `email` 欄位來的,所以請確認你和女友的 `users` 文件都有填正確的 `email`。
+
+---
+
 ## 常見問題
 
 - **上線後白畫面**:多半是 `vite.config.js` 的 `base` 沒設成正確的 repo 名。

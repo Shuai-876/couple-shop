@@ -17,6 +17,7 @@ import {
 import { auth, db } from '../firebase'
 import { useAuth } from '../auth'
 import { compressImage } from '../utils/image'
+import { sendNotify } from '../email'
 
 export default function AdminPage() {
   const { profile } = useAuth()
@@ -285,6 +286,14 @@ export default function AdminPage() {
           reason: `任務:${claim.taskTitle}`,
           createdAt: serverTimestamp(),
         })
+      })
+      // 寄信通知女友(best-effort,失敗不影響核准)
+      const cust = customers.find((c) => c.uid === claim.userId)
+      sendNotify({
+        toEmail: cust?.email,
+        toName: cust?.name,
+        title: '🪙 你的任務獲得核准!',
+        message: `恭喜!你的任務「${claim.taskTitle}」已通過審核,獲得 ${claim.reward} 代幣 🎉 快去商城逛逛吧 💕`,
       })
       showToast(`已核准,發出 ${claim.reward} 代幣 🪙`)
     } catch (err) {

@@ -4,6 +4,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -14,6 +15,7 @@ import {
 import { auth, db } from '../firebase'
 import { useAuth } from '../auth'
 import { compressImage } from '../utils/image'
+import { sendNotify } from '../email'
 
 export default function CustomerPage() {
   const { user, profile } = useAuth()
@@ -29,7 +31,15 @@ export default function CustomerPage() {
   const [imgBusy, setImgBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState('')
+  const [admin, setAdmin] = useState(null) // 管理員資料(寄信通知用)
   const photoRef = useRef(null)
+
+  // 載入管理員資料(role == admin),送出申請時用來寄信通知他
+  useEffect(() => {
+    getDocs(query(collection(db, 'users'), where('role', '==', 'admin'))).then((snap) => {
+      if (!snap.empty) setAdmin(snap.docs[0].data())
+    })
+  }, [])
 
   // 即時監聽自己的代幣餘額(tokens/{uid}),餘額一變畫面就更新
   useEffect(() => {
@@ -169,6 +179,15 @@ export default function CustomerPage() {
         note: claimNote.trim(),
         dayKey: todayKey, // 記下是紐約時間哪一天送的
         createdAt: serverTimestamp(),
+      })
+      // 寄信通知管理員(best-effort,失敗不影響送出)
+      sendNotify({
+        toEmail: admin?.email,
+        toName: admin?.name,
+        title: `💕 ${profile?.name || '她'}申請完成任務`,
+        message: `${profile?.name || '她'} 申請完成任務「${claimingTask.title}」(獎勵 ${claimingTask.reward} 代幣)。${
+          claimNote.trim() ? `留言:${claimNote.trim()}。` : ''
+        }快到管理頁審核吧!`,
       })
       showToast('已送出,等他確認囉 💌')
     } catch (err) {
