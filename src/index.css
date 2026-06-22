@@ -487,6 +487,41 @@ body {
   flex: 1;
 }
 
+/* 任務小標籤 */
+.task-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.tag {
+  font-size: 11px;
+  color: var(--pink-deep);
+  background: var(--pink-soft);
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 6px;
+}
+.task-tags .tag {
+  margin-left: 0;
+}
+
+/* 勾選列(新增任務的設定) */
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+.check-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--pink-deep);
+}
+
 /* 放大檢視照片 */
 .photo-full {
   max-width: 92vw;

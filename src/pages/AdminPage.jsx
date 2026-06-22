@@ -40,6 +40,8 @@ export default function AdminPage() {
   const [tTitle, setTTitle] = useState('')
   const [tReward, setTReward] = useState('')
   const [tDesc, setTDesc] = useState('')
+  const [tRequirePhoto, setTRequirePhoto] = useState(true) // 完成是否需附照片
+  const [tDaily, setTDaily] = useState(false) // 是否每日刷新(紐約時間)
 
   // 列表 / 統計資料
   const [products, setProducts] = useState([])
@@ -214,12 +216,16 @@ export default function AdminPage() {
         title: tTitle.trim(),
         reward,
         description: tDesc.trim(),
+        requirePhoto: tRequirePhoto,
+        daily: tDaily,
         active: true,
         createdAt: serverTimestamp(),
       })
       setTTitle('')
       setTReward('')
       setTDesc('')
+      setTRequirePhoto(true)
+      setTDaily(false)
       showToast('任務已新增 🎯')
     } catch (err) {
       showToast('新增失敗,請再試一次')
@@ -441,6 +447,23 @@ export default function AdminPage() {
               placeholder="例如:完成後拍照給我看 📷"
             />
 
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={tRequirePhoto}
+                onChange={(e) => setTRequirePhoto(e.target.checked)}
+              />
+              完成時需附照片
+            </label>
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={tDaily}
+                onChange={(e) => setTDaily(e.target.checked)}
+              />
+              每天可重新完成一次(紐約時間 0:00 刷新)
+            </label>
+
             <button className="btn btn-primary" disabled={busy}>
               {busy ? '新增中…' : '新增任務'}
             </button>
@@ -456,6 +479,8 @@ export default function AdminPage() {
               <li className="manage-item" key={t.id}>
                 <span className="manage-name">
                   {t.title}
+                  {t.daily && <span className="tag">每日</span>}
+                  {t.requirePhoto !== false && <span className="tag">照片</span>}
                   {t.active === false && <span className="off-badge">已停用</span>}
                 </span>
                 <span className="manage-price">+{t.reward} 🪙</span>

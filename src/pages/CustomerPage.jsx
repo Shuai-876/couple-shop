@@ -147,9 +147,16 @@ export default function CustomerPage() {
     }
   }
 
-  // 送出完成申請(狀態 pending、附照片;獎勵金額照任務設定,等他核准才入帳)
+  // 送出完成申請(狀態 pending;獎勵金額照任務設定,等他核准才入帳)
   async function submitClaim() {
-    if (!claimPhoto) return showToast('請先附上一張完成的照片')
+    // 是否需要附照片,依任務設定(沒設定預設要附)
+    const needPhoto = claimingTask.requirePhoto !== false
+    if (needPhoto && !claimPhoto) return showToast('這個任務要附完成照片喔')
+    // 每日刷新任務:今天已領過就擋下
+    if (claimingTask.daily && todayClaim(claimingTask.id)) {
+      setClaimingTask(null)
+      return showToast('這個任務今天領過囉,明天再來 💕')
+    }
     setBusy(true)
     try {
       await addDoc(collection(db, 'taskClaims'), {
@@ -160,6 +167,7 @@ export default function CustomerPage() {
         status: 'pending',
         photo: claimPhoto,
         note: claimNote.trim(),
+        dayKey: todayKey, // 記下是紐約時間哪一天送的
         createdAt: serverTimestamp(),
       })
       showToast('已送出,等他確認囉 💌')
@@ -173,6 +181,18 @@ export default function CustomerPage() {
 
   // 把申請狀態翻成中文標籤
   const statusText = { pending: '待確認', approved: '已核准 ✅', rejected: '已退回' }
+
+  // 今天(紐約時間)的日期 key
+  const todayKey = nyDayKey()
+  // 找出某任務「今天」已送出或已核准的申請(每日任務用來判斷今天是否已領過)
+  function todayClaim(taskId) {
+    return claims.find(
+      (c) =>
+        c.taskId === taskId &&
+        c.dayKey === todayKey &&
+        (c.status === 'pending' || c.status === 'approved'),
+    )
+  }
 
   return (
     <div className="page">
@@ -195,18 +215,36 @@ export default function CustomerPage() {
         <h2 className="section-title">任務 🎯</h2>
         {tasks.length === 0 && <p className="empty">目前沒有任務,等他出題～</p>}
         <div className="task-list">
-          {tasks.map((t) => (
-            <div className="card task-card" key={t.id}>
-              <div className="task-top">
-                <span className="task-title">{t.title}</span>
-                <span className="task-reward">+{t.reward} 🪙</span>
+          {tasks.map((t) => {
+            // 每日任務才需要判斷今天是否領過
+            const doneToday = t.daily ? todayClaim(t.id) : null
+            return (
+              <div className="card task-card" key={t.id}>
+                <div className="task-top">
+                  <span className="task-title">{t.title}</span>
+                  <span className="task-reward">+{t.reward} 🪙</span>
+                </div>
+                {t.description && <p className="task-desc">{t.description}</p>}
+                <div className="task-tags">
+                  {t.daily && <span className="tag">每日刷新</span>}
+                  {t.requirePhoto !== false && <span className="tag">需附照片</span>}
+                </div>
+                {doneToday ? (
+                  <button className="btn btn-ghost btn-sm" disabled>
+                    {doneToday.status === 'approved' ? '今天已完成 ✅' : '今天已送出,待確認'}
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={busy}
+                    onClick={() => openClaim(t)}
+                  >
+                    我完成了,領獎勵
+                  </button>
+                )}
               </div>
-              {t.description && <p className="task-desc">{t.description}</p>}
-              <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => openClaim(t)}>
-                我完成了,領獎勵
-              </button>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* 我的任務申請狀態 */}
@@ -292,7 +330,9 @@ export default function CustomerPage() {
               獎勵 <b>+{claimingTask.reward} 🪙</b>(他確認後入帳)
             </p>
 
-            <label className="field-label">附上完成照片(必填)</label>
+            <label className="field-label">
+              附上完成照片{claimingTask.requirePhoto !== false ? '(必填)' : '(可選)'}
+            </label>
             <input
               className="input"
               type="file"
@@ -334,6 +374,17 @@ export default function CustomerPage() {
       {toast && <div className="toast">{toast}</div>}
     </div>
   )
+}
+
+// 取得「紐約時間」的今天日期字串(例如 2026-06-22),夏令時間會自動處理。
+// 每日刷新任務就是用這個 key 判斷是否同一天。
+function nyDayKey(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
 }
 
 // 把 Firestore timestamp 轉成好讀的日期字串
