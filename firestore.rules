@@ -43,5 +43,27 @@ service cloud.firestore {
       allow create: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       allow update, delete: if false;
     }
+
+    // 任務:登入者皆可讀;只有 admin 能新增/修改/刪除
+    match /tasks/{taskId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // 完成申請:本人或 admin 可讀
+    match /taskClaims/{claimId} {
+      allow read: if resource.data.userId == request.auth.uid
+        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+
+      // 只能由本人建立,且狀態必須是 pending、獎勵金額必須等於該任務實際設定(防止偷改金額)
+      allow create: if request.auth.uid == request.resource.data.userId
+        && request.resource.data.status == 'pending'
+        && request.resource.data.reward == get(/databases/$(database)/documents/tasks/$(request.resource.data.taskId)).data.reward;
+
+      // 只有 admin 能審核(核准/退回 → 改狀態);不可刪除
+      allow update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow delete: if false;
+    }
   }
 }

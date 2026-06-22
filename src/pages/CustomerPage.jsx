@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { signOut } from 'firebase/auth'
 import {
+  addDoc,
   collection,
   doc,
   onSnapshot,
@@ -12,15 +13,23 @@ import {
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 import { useAuth } from '../auth'
+import { compressImage } from '../utils/image'
 
 export default function CustomerPage() {
   const { user, profile } = useAuth()
   const [balance, setBalance] = useState(null) // null = 還沒載入
   const [products, setProducts] = useState([])
   const [orders, setOrders] = useState([])
+  const [tasks, setTasks] = useState([])
+  const [claims, setClaims] = useState([]) // 自己的完成申請
   const [confirming, setConfirming] = useState(null) // 正在確認購買的商品
+  const [claimingTask, setClaimingTask] = useState(null) // 正在申請完成的任務
+  const [claimPhoto, setClaimPhoto] = useState('') // 申請要附的照片(壓縮後 base64)
+  const [claimNote, setClaimNote] = useState('') // 申請留言
+  const [imgBusy, setImgBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState('')
+  const photoRef = useRef(null)
 
   // 即時監聽自己的代幣餘額(tokens/{uid}),餘額一變畫面就更新
   useEffect(() => {
@@ -37,6 +46,26 @@ export default function CustomerPage() {
       setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
     })
   }, [])
+
+  // 即時監聽任務列表(只取上架中的;在前端依建立時間排序,避免要建複合索引)
+  useEffect(() => {
+    const q = query(collection(db, 'tasks'), orderBy('createdAt', 'desc'))
+    return onSnapshot(q, (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => t.active !== false)
+      setTasks(list)
+    })
+  }, [])
+
+  // 即時監聽自己的完成申請(只用 userId 過濾,排序在前端做,免複合索引)
+  useEffect(() => {
+    if (!user) return
+    const q = query(collection(db, 'taskClaims'), where('userId', '==', user.uid))
+    return onSnapshot(q, (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+      setClaims(list)
+    })
+  }, [user])
 
   // 即時監聽自己的購買歷史(orders 裡 userId 是自己的),時間倒序
   useEffect(() => {
@@ -96,6 +125,55 @@ export default function CustomerPage() {
     }
   }
 
+  // 打開「申請完成任務」視窗,清空上次的照片/留言
+  function openClaim(task) {
+    setClaimingTask(task)
+    setClaimPhoto('')
+    setClaimNote('')
+    if (photoRef.current) photoRef.current.value = ''
+  }
+
+  // 選照片 → 壓縮成 base64
+  async function onPickPhoto(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImgBusy(true)
+    try {
+      setClaimPhoto(await compressImage(file))
+    } catch {
+      showToast('照片處理失敗,換一張試試')
+    } finally {
+      setImgBusy(false)
+    }
+  }
+
+  // 送出完成申請(狀態 pending、附照片;獎勵金額照任務設定,等他核准才入帳)
+  async function submitClaim() {
+    if (!claimPhoto) return showToast('請先附上一張完成的照片')
+    setBusy(true)
+    try {
+      await addDoc(collection(db, 'taskClaims'), {
+        taskId: claimingTask.id,
+        taskTitle: claimingTask.title,
+        reward: claimingTask.reward,
+        userId: user.uid,
+        status: 'pending',
+        photo: claimPhoto,
+        note: claimNote.trim(),
+        createdAt: serverTimestamp(),
+      })
+      showToast('已送出,等他確認囉 💌')
+    } catch (err) {
+      showToast('送出失敗,請再試一次')
+    } finally {
+      setBusy(false)
+      setClaimingTask(null)
+    }
+  }
+
+  // 把申請狀態翻成中文標籤
+  const statusText = { pending: '待確認', approved: '已核准 ✅', rejected: '已退回' }
+
   return (
     <div className="page">
       {/* 頂部:餘額 + 登出 */}
@@ -113,6 +191,41 @@ export default function CustomerPage() {
       </header>
 
       <main className="content">
+        {/* 任務 */}
+        <h2 className="section-title">任務 🎯</h2>
+        {tasks.length === 0 && <p className="empty">目前沒有任務,等他出題～</p>}
+        <div className="task-list">
+          {tasks.map((t) => (
+            <div className="card task-card" key={t.id}>
+              <div className="task-top">
+                <span className="task-title">{t.title}</span>
+                <span className="task-reward">+{t.reward} 🪙</span>
+              </div>
+              {t.description && <p className="task-desc">{t.description}</p>}
+              <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => openClaim(t)}>
+                我完成了,領獎勵
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* 我的任務申請狀態 */}
+        {claims.length > 0 && (
+          <>
+            <h2 className="section-title">我的任務申請</h2>
+            <ul className="history-list">
+              {claims.map((c) => (
+                <li className="history-item" key={c.id}>
+                  <span>{c.taskTitle}</span>
+                  <span className={`status-badge status-${c.status}`}>{statusText[c.status] || c.status}</span>
+                  <span className="history-date">{fmtDate(c.createdAt)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {/* 商品 */}
         <h2 className="section-title">商品列表</h2>
         {products.length === 0 && <p className="empty">還沒有任何商品,等他上架吧～</p>}
 
@@ -164,6 +277,54 @@ export default function CustomerPage() {
               </button>
               <button className="btn btn-primary" disabled={busy} onClick={() => buy(confirming)}>
                 {busy ? '處理中…' : '確定購買'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 申請完成任務彈窗(要附照片) */}
+      {claimingTask && (
+        <div className="modal-mask" onClick={() => !busy && !imgBusy && setClaimingTask(null)}>
+          <div className="card modal" onClick={(e) => e.stopPropagation()}>
+            <p className="modal-text">
+              完成任務:<b>{claimingTask.title}</b><br />
+              獎勵 <b>+{claimingTask.reward} 🪙</b>(他確認後入帳)
+            </p>
+
+            <label className="field-label">附上完成照片(必填)</label>
+            <input
+              className="input"
+              type="file"
+              accept="image/*"
+              ref={photoRef}
+              onChange={onPickPhoto}
+            />
+            {imgBusy && <div className="hint">壓縮照片中…</div>}
+            {claimPhoto && <img className="preview-img" src={claimPhoto} alt="預覽" />}
+
+            <label className="field-label">想說的話(可留空)</label>
+            <input
+              className="input"
+              value={claimNote}
+              onChange={(e) => setClaimNote(e.target.value)}
+              placeholder="例如:我做到了!💪"
+            />
+
+            <div className="modal-actions">
+              <button
+                className="btn btn-ghost"
+                disabled={busy || imgBusy}
+                onClick={() => setClaimingTask(null)}
+              >
+                取消
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || imgBusy}
+                onClick={submitClaim}
+              >
+                {busy ? '送出中…' : '送出申請'}
               </button>
             </div>
           </div>

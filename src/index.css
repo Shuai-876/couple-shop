@@ -363,3 +363,134 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   white-space: nowrap;
 }
+
+/* ── 任務 ── */
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.task-card {
+  padding: 14px;
+}
+.task-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.task-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.task-reward {
+  color: var(--pink-deep);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.task-desc {
+  margin: 8px 0 10px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.task-card .btn-sm {
+  width: 100%;
+}
+
+/* 任務申請狀態標籤 */
+.status-badge {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.status-pending {
+  background: #fff1d6;
+  color: #b9821a;
+}
+.status-approved {
+  background: #d8f5e3;
+  color: #1f9d57;
+}
+.status-rejected {
+  background: #ffe0e6;
+  color: var(--danger);
+}
+
+/* 已停用任務標記 */
+.off-badge {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  background: #f0e8ec;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* 待審核小紅點數字 */
+.pending-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--danger);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+/* ── 待審核申請卡片 ── */
+.claim-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.claim-card {
+  display: flex;
+  gap: 12px;
+  background: #fffafc;
+  border: 1px solid var(--pink-soft);
+  border-radius: 14px;
+  padding: 10px;
+}
+.claim-photo {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.claim-info {
+  flex: 1;
+  min-width: 0;
+}
+.claim-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+.claim-note {
+  font-size: 13px;
+  color: var(--text);
+  margin: 4px 0;
+}
+.claim-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.claim-actions .btn {
+  flex: 1;
+}
+
+/* 放大檢視照片 */
+.photo-full {
+  max-width: 92vw;
+  max-height: 88vh;
+  border-radius: 14px;
+  object-fit: contain;
+}
