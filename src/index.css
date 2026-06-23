@@ -313,6 +313,13 @@ body {
   font-weight: 600;
   font-size: 14px;
 }
+.order-date {
+  display: block;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
 .manage-price {
   color: var(--pink-deep);
   font-weight: 600;

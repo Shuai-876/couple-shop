@@ -307,8 +307,9 @@ export default function CustomerPage() {
           ))}
         </div>
 
-        <h2 className="section-title">購買歷史</h2>
-        {orders.length === 0 && <p className="empty">還沒有購買紀錄</p>}
+        <h2 className="section-title">待兌換清單</h2>
+        <p className="hint">買到的東西會在這裡等他幫你兌換,兌換完成後就會消失 💕</p>
+        {orders.length === 0 && <p className="empty">目前沒有待兌換的東西</p>}
         <ul className="history-list">
           {orders.map((o) => (
             <li className="history-item" key={o.id}>

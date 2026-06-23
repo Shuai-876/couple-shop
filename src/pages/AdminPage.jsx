@@ -25,6 +25,7 @@ export default function AdminPage() {
   // 顧客清單(發代幣的對象)
   const [customers, setCustomers] = useState([])
   const [targetUid, setTargetUid] = useState('')
+  const [customerBalance, setCustomerBalance] = useState(null) // 對象目前的代幣餘額
 
   // 發代幣表單
   const [amount, setAmount] = useState('')
@@ -68,6 +69,17 @@ export default function AdminPage() {
       if (list.length > 0) setTargetUid(list[0].uid)
     })
   }, [])
+
+  // 即時監聽「發代幣對象」目前的代幣餘額
+  useEffect(() => {
+    if (!targetUid) {
+      setCustomerBalance(null)
+      return
+    }
+    return onSnapshot(doc(db, 'tokens', targetUid), (snap) => {
+      setCustomerBalance(snap.exists() ? snap.data().balance : 0)
+    })
+  }, [targetUid])
 
   // 即時監聽商品(供「商品管理」與「商品總數」用)
   useEffect(() => {
@@ -317,9 +329,23 @@ export default function AdminPage() {
     }
   }
 
-  // 統計數字(代幣是整數,直接加總)
-  const totalGiven = logs.reduce((sum, l) => sum + (l.amount || 0), 0)
+  // 兌換訂單:確認已給她後刪除這筆訂單(代表結清)
+  async function redeemOrder(o) {
+    if (!confirm(`確認「${o.productName}」已經兌換給她了嗎?\n確認後這筆訂單會刪除消失。`)) return
+    try {
+      await deleteDoc(doc(db, 'orders', o.id))
+      showToast('已兌換,訂單結清 ✅')
+    } catch {
+      showToast('操作失敗')
+    }
+  }
+
+  // 統計數字
   const totalOrders = orders.length
+  // 待兌換訂單(時間新到舊)
+  const pendingOrders = [...orders].sort(
+    (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
+  )
 
   return (
     <div className="page">
@@ -334,12 +360,12 @@ export default function AdminPage() {
         {/* 統計 */}
         <div className="stats">
           <div className="stat-box">
-            <div className="stat-num">{totalGiven}</div>
-            <div className="stat-label">總發出代幣</div>
+            <div className="stat-num">{customerBalance === null ? '…' : customerBalance}</div>
+            <div className="stat-label">她的餘額 🪙</div>
           </div>
           <div className="stat-box">
             <div className="stat-num">{totalOrders}</div>
-            <div className="stat-label">購買次數</div>
+            <div className="stat-label">待兌換</div>
           </div>
           <div className="stat-box">
             <div className="stat-num">{products.length}</div>
@@ -382,6 +408,29 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* 待兌換訂單 */}
+        <section className="card form-card">
+          <h2 className="section-title">
+            待兌換訂單{' '}
+            {pendingOrders.length > 0 && <span className="pending-dot">{pendingOrders.length}</span>}
+          </h2>
+          {pendingOrders.length === 0 && <p className="empty">目前沒有待兌換的訂單</p>}
+          <ul className="manage-list">
+            {pendingOrders.map((o) => (
+              <li className="manage-item" key={o.id}>
+                <span className="manage-name">
+                  {o.productName}
+                  <span className="order-date">{fmtDate(o.createdAt)}</span>
+                </span>
+                <span className="manage-price">🪙 {o.price}</span>
+                <button className="btn btn-primary btn-sm" onClick={() => redeemOrder(o)}>
+                  已兌換
+                </button>
+              </li>
+            ))}
+          </ul>
         </section>
 
         {/* 發代幣 */}

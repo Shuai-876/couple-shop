@@ -34,7 +34,9 @@ service cloud.firestore {
       allow read: if resource.data.userId == request.auth.uid
         || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       allow create: if request.auth.uid == request.resource.data.userId;
-      allow update, delete: if false;
+      allow update: if false;
+      // 管理員可刪除訂單(代表「已兌換、結清」)
+      allow delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // 發代幣紀錄:登入者可讀;只有 admin 能建立;不可改/刪
