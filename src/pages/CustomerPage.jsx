@@ -126,6 +126,13 @@ export default function CustomerPage() {
           createdAt: serverTimestamp(),
         })
       })
+      // 寄信通知管理員她下單了(best-effort,失敗不影響購買)
+      sendNotify({
+        toEmail: admin?.email,
+        toName: admin?.name,
+        title: `🛍️ ${profile?.name || '她'}下單了!`,
+        message: `${profile?.name || '她'} 用 ${product.price} 代幣兌換了「${product.name}」,記得到管理頁的「待兌換訂單」幫她兌現喔 💕`,
+      })
       showToast(`購買成功:${product.name} 🎉`)
     } catch (err) {
       showToast(err.message === '餘額不足' ? '代幣不足,買不起這個喔 🥺' : '購買失敗,請再試一次')

@@ -334,6 +334,14 @@ export default function AdminPage() {
     if (!confirm(`確認「${o.productName}」已經兌換給她了嗎?\n確認後這筆訂單會刪除消失。`)) return
     try {
       await deleteDoc(doc(db, 'orders', o.id))
+      // 寄信通知她兌換完成(best-effort,失敗不影響)
+      const cust = customers.find((c) => c.uid === o.userId)
+      sendNotify({
+        toEmail: cust?.email,
+        toName: cust?.name,
+        title: '✅ 你的兌換完成囉!',
+        message: `你的「${o.productName}」已經兌換完成 🎉 希望你喜歡 💕`,
+      })
       showToast('已兌換,訂單結清 ✅')
     } catch {
       showToast('操作失敗')
