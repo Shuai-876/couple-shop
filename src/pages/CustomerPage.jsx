@@ -16,7 +16,7 @@ import { auth, db } from '../firebase'
 import { useAuth } from '../auth'
 import { compressImage } from '../utils/image'
 import { sendNotify } from '../email'
-import { LEVEL_STEP, computeLevel, levelProgress } from '../levels'
+import { LEVEL_STEP, LEVELS_PER_MYSTERY, computeLevel, levelProgress, mysteryEntitled } from '../levels'
 
 export default function CustomerPage() {
   const { user, profile } = useAuth()
@@ -228,10 +228,12 @@ export default function CustomerPage() {
     }
   }
 
-  // 等級計算:由累積獲得算等級;可兌換神祕獎品數 = 等級 - 已兌換數
+  // 等級計算:由累積獲得算等級;每 5 級解鎖一個神祕獎品
   const level = computeLevel(totalEarned)
   const { into, remain } = levelProgress(totalEarned)
-  const availableMystery = level - myMystery.length
+  const availableMystery = mysteryEntitled(level) - myMystery.length
+  // 距離下一個神祕獎品還差幾級
+  const levelsToNextMystery = LEVELS_PER_MYSTERY - (level % LEVELS_PER_MYSTERY)
 
   // 兌換神祕獎品(升級獎勵,不花代幣):建立一筆 pending,等他準備
   async function redeemMystery() {
@@ -305,13 +307,15 @@ export default function CustomerPage() {
           <div className="level-hint">
             再 {remain} 代幣升到 Lv.{level + 1}(每 {LEVEL_STEP} 代幣升一級)
           </div>
-          {availableMystery > 0 && (
+          {availableMystery > 0 ? (
             <div className="mystery-box">
               <div className="mystery-text">🎁 你有 {availableMystery} 個神祕獎品可以兌換!</div>
               <button className="btn btn-primary btn-sm" disabled={busy} onClick={redeemMystery}>
                 兌換神祕獎品
               </button>
             </div>
+          ) : (
+            <div className="level-hint">🎁 再升 {levelsToNextMystery} 級可解鎖一個神祕獎品(每 {LEVELS_PER_MYSTERY} 級一個)</div>
           )}
           {myMystery.filter((m) => m.status === 'pending').length > 0 && (
             <div className="level-hint">
