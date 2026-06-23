@@ -1,7 +1,7 @@
 // 升級制度設定
-// 每「累積獲得」這麼多代幣就升一級;每升「5 級」可兌換一個神祕獎品。
-export const LEVEL_STEP = 750
-export const LEVELS_PER_MYSTERY = 5
+// 每「累積獲得」這麼多代幣就升一級;每升「1 級」可兌換一個神祕獎品。
+export const LEVEL_STEP = 1500
+export const LEVELS_PER_MYSTERY = 1
 
 // 由「累積總共獲得的代幣」算出等級(整數,只升不降)
 export function computeLevel(totalEarned) {
