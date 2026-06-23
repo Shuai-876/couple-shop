@@ -18,6 +18,7 @@ import { auth, db } from '../firebase'
 import { useAuth } from '../auth'
 import { compressImage } from '../utils/image'
 import { sendNotify } from '../email'
+import { computeLevel } from '../levels'
 
 export default function AdminPage() {
   const { profile } = useAuth()
@@ -51,6 +52,7 @@ export default function AdminPage() {
   const [logs, setLogs] = useState([])
   const [tasks, setTasks] = useState([])
   const [pendingClaims, setPendingClaims] = useState([]) // 待審核的完成申請
+  const [pendingMystery, setPendingMystery] = useState([]) // 待處理的神祕獎品兌換
 
   const [viewPhoto, setViewPhoto] = useState('') // 點開放大的照片
   const [busy, setBusy] = useState(false)
@@ -122,12 +124,44 @@ export default function AdminPage() {
     })
   }, [])
 
+  // 即時監聽待處理的神祕獎品兌換(status == pending)
+  useEffect(() => {
+    const q = query(collection(db, 'mysteryRedemptions'), where('status', '==', 'pending'))
+    return onSnapshot(q, (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      list.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0))
+      setPendingMystery(list)
+    })
+  }, [])
+
+  // 算某對象目前「累積獲得」的代幣(從 tokenLogs 加總)
+  function earnedOf(uid) {
+    return logs.filter((l) => l.userId === uid).reduce((s, l) => s + (l.amount || 0), 0)
+  }
+
+  // 升級偵測:某對象累積獲得從 oldEarned 再加 addAmount 後若跨級,寄恭喜信
+  function maybeCongratsLevelUp(uid, oldEarned, addAmount) {
+    const newLevel = computeLevel(oldEarned + addAmount)
+    if (newLevel > computeLevel(oldEarned)) {
+      const cust = customers.find((c) => c.uid === uid)
+      sendNotify({
+        toEmail: cust?.email,
+        toName: cust?.name,
+        title: `🎉 恭喜升級到 Lv.${newLevel}!`,
+        message: `太棒了!你累積獲得的代幣讓你升到 Lv.${newLevel} 🎉 又解鎖一個神祕獎品,快到商城兌換吧 💕`,
+      })
+    }
+  }
+
   // ── 發代幣:transaction 累加餘額(沒有文件就建立)+ 記一筆 tokenLog ──
   async function giveTokens(e) {
     e.preventDefault()
     const n = parseInt(amount, 10)
     if (!targetUid) return showToast('請先選擇對象')
     if (!Number.isInteger(n) || n <= 0) return showToast('請輸入正整數數量')
+
+    // 發代幣前先記下她「累積獲得」,用來判斷是否升級
+    const oldEarned = earnedOf(targetUid)
 
     setBusy(true)
     try {
@@ -150,6 +184,8 @@ export default function AdminPage() {
           createdAt: serverTimestamp(),
         })
       })
+      // 若這次發代幣讓她升級,寄恭喜信
+      maybeCongratsLevelUp(targetUid, oldEarned, n)
       setAmount('')
       setReason('')
       showToast(`已發出 ${n} 代幣 🪙`)
@@ -269,6 +305,8 @@ export default function AdminPage() {
 
   // ── 核准完成申請:transaction 加代幣 + 改狀態 + 記 tokenLog ──
   async function approveClaim(claim) {
+    // 核准前先記下她「累積獲得」,用來判斷是否升級
+    const oldEarned = earnedOf(claim.userId)
     setBusy(true)
     try {
       await runTransaction(db, async (tx) => {
@@ -307,6 +345,8 @@ export default function AdminPage() {
         title: '🪙 你的任務獲得核准!',
         message: `恭喜!你的任務「${claim.taskTitle}」已通過審核,獲得 ${claim.reward} 代幣 🎉 快去商城逛逛吧 💕`,
       })
+      // 若這次任務獎勵讓她升級,另外寄一封恭喜信
+      maybeCongratsLevelUp(claim.userId, oldEarned, claim.reward)
       showToast(`已核准,發出 ${claim.reward} 代幣 🪙`)
     } catch (err) {
       showToast(err.message === '已處理' ? '這筆已經處理過了' : '核准失敗,請再試一次')
@@ -348,12 +388,36 @@ export default function AdminPage() {
     }
   }
 
+  // 標記神祕獎品已給(改狀態 done,保留紀錄)+ 寄信通知她
+  async function fulfillMystery(m) {
+    if (!confirm('確認神祕獎品已經準備好給她了嗎?')) return
+    try {
+      await updateDoc(doc(db, 'mysteryRedemptions', m.id), {
+        status: 'done',
+        decidedAt: serverTimestamp(),
+      })
+      const cust = customers.find((c) => c.uid === m.userId)
+      sendNotify({
+        toEmail: cust?.email,
+        toName: cust?.name,
+        title: '🎁 神祕獎品準備好囉!',
+        message: '你的神祕獎品已經準備好了 🎁 快來找他領取吧 💕',
+      })
+      showToast('已標記完成 🎁')
+    } catch {
+      showToast('操作失敗')
+    }
+  }
+
   // 統計數字
   const totalOrders = orders.length
   // 待兌換訂單(時間新到舊)
   const pendingOrders = [...orders].sort(
     (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
   )
+  // 她目前的等級(用發代幣對象的累積獲得算)
+  const herEarned = earnedOf(targetUid)
+  const herLevel = computeLevel(herEarned)
 
   return (
     <div className="page">
@@ -380,6 +444,38 @@ export default function AdminPage() {
             <div className="stat-label">商品總數</div>
           </div>
         </div>
+        <p className="level-line">
+          她目前 <b>Lv.{herLevel}</b>(累積獲得 {herEarned} 🪙)
+        </p>
+
+        {/* 神祕獎品兌換 */}
+        <section className="card form-card">
+          <h2 className="section-title">
+            神祕獎品兌換{' '}
+            {pendingMystery.length > 0 && <span className="pending-dot">{pendingMystery.length}</span>}
+          </h2>
+          {pendingMystery.length === 0 && <p className="empty">目前沒有待處理的神祕獎品</p>}
+          <ul className="manage-list">
+            {pendingMystery.map((m) => {
+              const cust = customers.find((c) => c.uid === m.userId)
+              return (
+                <li className="manage-item" key={m.id}>
+                  <span className="manage-name">
+                    🎁 神祕獎品（{cust?.name || '她'} · Lv.{m.level}）
+                    <span className="order-date">{fmtDate(m.createdAt)}</span>
+                  </span>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    style={{ marginLeft: 'auto' }}
+                    onClick={() => fulfillMystery(m)}
+                  >
+                    已給
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
 
         {/* 待審核任務 */}
         <section className="card form-card">

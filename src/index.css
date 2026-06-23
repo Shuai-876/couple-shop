@@ -494,6 +494,72 @@ body {
   flex: 1;
 }
 
+/* ── 等級卡 ── */
+.level-card {
+  margin-bottom: 4px;
+  background: linear-gradient(135deg, #fff0f5, #ffe3ec);
+}
+.level-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.level-badge {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--pink), var(--pink-deep));
+  padding: 4px 14px;
+  border-radius: 999px;
+}
+.level-earned {
+  font-size: 13px;
+  color: var(--muted);
+}
+.level-bar {
+  margin: 12px 0 6px;
+  height: 12px;
+  background: #ffd9e5;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.level-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--pink), var(--pink-deep));
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+.level-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+.mystery-box {
+  margin-top: 14px;
+  padding: 14px;
+  background: #fff;
+  border: 1.5px dashed var(--pink);
+  border-radius: 14px;
+  text-align: center;
+}
+.mystery-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pink-deep);
+  margin-bottom: 10px;
+}
+.mystery-box .btn-sm {
+  width: 100%;
+}
+/* 管理頁:她的等級一行 */
+.level-line {
+  margin: 8px 2px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.level-line b {
+  color: var(--pink-deep);
+}
+
 /* 任務小標籤 */
 .task-tags {
   display: flex;

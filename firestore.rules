@@ -67,5 +67,17 @@ service cloud.firestore {
       allow update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       allow delete: if false;
     }
+
+    // 神祕獎品兌換(升級獎勵):本人或 admin 可讀
+    match /mysteryRedemptions/{redeemId} {
+      allow read: if resource.data.userId == request.auth.uid
+        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // 只能由本人建立,且狀態為 pending(可兌換數量由前端依等級控管)
+      allow create: if request.auth.uid == request.resource.data.userId
+        && request.resource.data.status == 'pending';
+      // 只有 admin 能標記已給(改狀態);不可刪除,保留兌換次數紀錄
+      allow update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow delete: if false;
+    }
   }
 }

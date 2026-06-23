@@ -16,6 +16,7 @@ import { auth, db } from '../firebase'
 import { useAuth } from '../auth'
 import { compressImage } from '../utils/image'
 import { sendNotify } from '../email'
+import { LEVEL_STEP, computeLevel, levelProgress } from '../levels'
 
 export default function CustomerPage() {
   const { user, profile } = useAuth()
@@ -32,6 +33,8 @@ export default function CustomerPage() {
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState('')
   const [admin, setAdmin] = useState(null) // 管理員資料(寄信通知用)
+  const [totalEarned, setTotalEarned] = useState(0) // 累積總共獲得的代幣(算等級用)
+  const [myMystery, setMyMystery] = useState([]) // 自己的神祕獎品兌換紀錄
   const photoRef = useRef(null)
 
   // 載入管理員資料(role == admin),送出申請時用來寄信通知他
@@ -87,6 +90,27 @@ export default function CustomerPage() {
     )
     return onSnapshot(q, (snap) => {
       setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    })
+  }, [user])
+
+  // 即時監聽自己的代幣發放紀錄(tokenLogs),加總出「累積獲得」算等級
+  useEffect(() => {
+    if (!user) return
+    const q = query(collection(db, 'tokenLogs'), where('userId', '==', user.uid))
+    return onSnapshot(q, (snap) => {
+      const sum = snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0)
+      setTotalEarned(sum)
+    })
+  }, [user])
+
+  // 即時監聽自己的神祕獎品兌換紀錄(算還能換幾個 + 顯示狀態)
+  useEffect(() => {
+    if (!user) return
+    const q = query(collection(db, 'mysteryRedemptions'), where('userId', '==', user.uid))
+    return onSnapshot(q, (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+      setMyMystery(list)
     })
   }, [user])
 
@@ -205,6 +229,36 @@ export default function CustomerPage() {
     }
   }
 
+  // 等級計算:由累積獲得算等級;可兌換神祕獎品數 = 等級 - 已兌換數
+  const level = computeLevel(totalEarned)
+  const { into, remain } = levelProgress(totalEarned)
+  const availableMystery = level - myMystery.length
+
+  // 兌換神祕獎品(升級獎勵,不花代幣):建立一筆 pending,等他準備
+  async function redeemMystery() {
+    if (availableMystery <= 0) return showToast('目前沒有可兌換的神祕獎品')
+    setBusy(true)
+    try {
+      await addDoc(collection(db, 'mysteryRedemptions'), {
+        userId: user.uid,
+        status: 'pending',
+        level,
+        createdAt: serverTimestamp(),
+      })
+      sendNotify({
+        toEmail: admin?.email,
+        toName: admin?.name,
+        title: `🎁 ${profile?.name || '她'}要兌換神祕獎品!`,
+        message: `${profile?.name || '她'} 已達 Lv.${level},兌換了一個神祕獎品 🎁 記得幫她準備喔!`,
+      })
+      showToast('已申請神祕獎品,等他準備 🎁')
+    } catch {
+      showToast('兌換失敗,請再試一次')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // 把申請狀態翻成中文標籤
   const statusText = { pending: '待確認', approved: '已核准 ✅', rejected: '已退回' }
 
@@ -237,6 +291,36 @@ export default function CustomerPage() {
       </header>
 
       <main className="content">
+        {/* 等級 */}
+        <section className="card level-card">
+          <div className="level-top">
+            <span className="level-badge">Lv.{level}</span>
+            <span className="level-earned">累積獲得 {totalEarned} 🪙</span>
+          </div>
+          <div className="level-bar">
+            <div
+              className="level-bar-fill"
+              style={{ width: `${(into / LEVEL_STEP) * 100}%` }}
+            />
+          </div>
+          <div className="level-hint">
+            再 {remain} 代幣升到 Lv.{level + 1}(每 {LEVEL_STEP} 代幣升一級)
+          </div>
+          {availableMystery > 0 && (
+            <div className="mystery-box">
+              <div className="mystery-text">🎁 你有 {availableMystery} 個神祕獎品可以兌換!</div>
+              <button className="btn btn-primary btn-sm" disabled={busy} onClick={redeemMystery}>
+                兌換神祕獎品
+              </button>
+            </div>
+          )}
+          {myMystery.filter((m) => m.status === 'pending').length > 0 && (
+            <div className="level-hint">
+              🎁 有 {myMystery.filter((m) => m.status === 'pending').length} 個神祕獎品準備中…
+            </div>
+          )}
+        </section>
+
         {/* 任務 */}
         <h2 className="section-title">任務 🎯</h2>
         {tasks.length === 0 && <p className="empty">目前沒有任務,等他出題～</p>}
