@@ -18,7 +18,7 @@ import { auth, db } from '../firebase'
 import { useAuth } from '../auth'
 import { compressImage } from '../utils/image'
 import { sendNotify } from '../email'
-import { computeLevel } from '../levels'
+import { LEVEL_STEP, computeLevel, levelProgress } from '../levels'
 
 export default function AdminPage() {
   const { profile } = useAuth()
@@ -418,6 +418,7 @@ export default function AdminPage() {
   // 她目前的等級(用發代幣對象的累積獲得算)
   const herEarned = earnedOf(targetUid)
   const herLevel = computeLevel(herEarned)
+  const herProg = levelProgress(herEarned)
 
   return (
     <div className="page">
@@ -429,6 +430,23 @@ export default function AdminPage() {
       </header>
 
       <main className="content">
+        {/* 她的等級(大卡片) */}
+        <section className="card level-card">
+          <div className="level-top">
+            <span className="level-badge">Lv.{herLevel}</span>
+            <span className="level-earned">累積獲得 {herEarned} 🪙</span>
+          </div>
+          <div className="level-bar">
+            <div
+              className="level-bar-fill"
+              style={{ width: `${(herProg.into / LEVEL_STEP) * 100}%` }}
+            />
+          </div>
+          <div className="level-hint">
+            再 {herProg.remain} 代幣升到 Lv.{herLevel + 1}(每 {LEVEL_STEP} 代幣升一級)
+          </div>
+        </section>
+
         {/* 統計 */}
         <div className="stats">
           <div className="stat-box">
@@ -444,9 +462,6 @@ export default function AdminPage() {
             <div className="stat-label">商品總數</div>
           </div>
         </div>
-        <p className="level-line">
-          她目前 <b>Lv.{herLevel}</b>(累積獲得 {herEarned} 🪙)
-        </p>
 
         {/* 神祕獎品兌換 */}
         <section className="card form-card">
