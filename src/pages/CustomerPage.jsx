@@ -80,16 +80,15 @@ export default function CustomerPage() {
     })
   }, [user])
 
-  // 即時監聽自己的購買歷史(orders 裡 userId 是自己的),時間倒序
+  // 即時監聽自己的待兌換清單(orders 裡 userId 是自己的)
+  // 只用 userId 過濾、排序在前端做,避免要建複合索引(否則清單會空白)
   useEffect(() => {
     if (!user) return
-    const q = query(
-      collection(db, 'orders'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc'),
-    )
+    const q = query(collection(db, 'orders'), where('userId', '==', user.uid))
     return onSnapshot(q, (snap) => {
-      setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+      setOrders(list)
     })
   }, [user])
 
