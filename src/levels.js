@@ -20,10 +20,12 @@ export function levelProgress(totalEarned) {
 }
 
 // 距離 9/19(當年,已過則算下一年)還有幾週幾天
+// 用「日期」算(不受當下幾點影響),且含 9/19 當天,所以 +1
 export function countdownToSep19() {
   const now = new Date()
-  let target = new Date(now.getFullYear(), 8, 19) // 8 = September
-  if (target <= now) target = new Date(now.getFullYear() + 1, 8, 19)
-  const diffDays = Math.max(0, Math.floor((target - now) / 86400000))
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  let target = new Date(today.getFullYear(), 8, 19) // 8 = September
+  if (target < today) target = new Date(today.getFullYear() + 1, 8, 19)
+  const diffDays = Math.round((target - today) / 86400000) + 1
   return { weeks: Math.floor(diffDays / 7), days: diffDays % 7 }
 }
