@@ -18,3 +18,12 @@ export function levelProgress(totalEarned) {
   const into = (totalEarned || 0) % LEVEL_STEP
   return { into, remain: LEVEL_STEP - into }
 }
+
+// 距離 9/19(當年,已過則算下一年)還有幾週幾天
+export function countdownToSep19() {
+  const now = new Date()
+  let target = new Date(now.getFullYear(), 8, 19) // 8 = September
+  if (target <= now) target = new Date(now.getFullYear() + 1, 8, 19)
+  const diffDays = Math.max(0, Math.floor((target - now) / 86400000))
+  return { weeks: Math.floor(diffDays / 7), days: diffDays % 7 }
+}

@@ -516,6 +516,14 @@ body {
   font-size: 13px;
   color: var(--muted);
 }
+.level-countdown {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--pink-deep);
+  background: rgba(240, 109, 146, 0.12);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
 .level-bar {
   margin: 12px 0 6px;
   height: 12px;
