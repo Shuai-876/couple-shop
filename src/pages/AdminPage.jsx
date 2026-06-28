@@ -11,6 +11,7 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from 'firebase/firestore'
@@ -38,6 +39,10 @@ export default function AdminPage() {
   const [imageData, setImageData] = useState('') // 壓縮後的 base64
   const [imgBusy, setImgBusy] = useState(false)
   const fileRef = useRef(null)
+
+  // 盲盒設定
+  const [blindBox, setBlindBox] = useState({ enabled: false, price: '' })
+  const [bbBusy, setBbBusy] = useState(false)
 
   // 新增任務表單
   const [tTitle, setTTitle] = useState('')
@@ -82,6 +87,16 @@ export default function AdminPage() {
       setCustomerBalance(snap.exists() ? snap.data().balance : 0)
     })
   }, [targetUid])
+
+  // 即時監聽盲盒設定
+  useEffect(() => {
+    return onSnapshot(doc(db, 'settings', 'blindBox'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data()
+        setBlindBox({ enabled: !!data.enabled, price: data.price ?? '' })
+      }
+    })
+  }, [])
 
   // 即時監聽商品(供「商品管理」與「商品總數」用)
   useEffect(() => {
@@ -249,6 +264,28 @@ export default function AdminPage() {
       showToast('已刪除')
     } catch {
       showToast('刪除失敗')
+    }
+  }
+
+  // ── 儲存盲盒設定 ──
+  async function saveBlindBox(e) {
+    e.preventDefault()
+    const price = parseInt(blindBox.price, 10)
+    if (blindBox.enabled && (!Number.isInteger(price) || price <= 0)) {
+      return showToast('請輸入正整數價格')
+    }
+    setBbBusy(true)
+    try {
+      await setDoc(doc(db, 'settings', 'blindBox'), {
+        enabled: blindBox.enabled,
+        price: blindBox.enabled ? price : (parseInt(blindBox.price, 10) || 0),
+        updatedAt: serverTimestamp(),
+      })
+      showToast(blindBox.enabled ? '盲盒已開啟 🎲' : '盲盒已關閉')
+    } catch {
+      showToast('儲存失敗,請再試一次')
+    } finally {
+      setBbBusy(false)
     }
   }
 
@@ -672,6 +709,36 @@ export default function AdminPage() {
               </li>
             ))}
           </ul>
+        </section>
+
+        {/* 盲盒設定 */}
+        <section className="card form-card">
+          <h2 className="section-title">盲盒設定 🎲</h2>
+          <form onSubmit={saveBlindBox}>
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={blindBox.enabled}
+                onChange={(e) => setBlindBox((b) => ({ ...b, enabled: e.target.checked }))}
+              />
+              開啟盲盒功能
+            </label>
+
+            <label className="field-label">盲盒價格(代幣)</label>
+            <input
+              className="input"
+              type="number"
+              min="1"
+              value={blindBox.price}
+              onChange={(e) => setBlindBox((b) => ({ ...b, price: e.target.value }))}
+              placeholder="例如 30"
+            />
+            <div className="hint">她購買盲盒後會隨機獲得一個現有商品,出的商品會出現在待兌換清單</div>
+
+            <button className="btn btn-primary" disabled={bbBusy}>
+              {bbBusy ? '儲存中…' : '儲存設定'}
+            </button>
+          </form>
         </section>
 
         {/* 上架商品 */}

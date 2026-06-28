@@ -68,6 +68,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // 設定(盲盒等):登入者皆可讀;只有 admin 能寫
+    match /settings/{settingId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // 神祕獎品兌換(升級獎勵):本人或 admin 可讀
     match /mysteryRedemptions/{redeemId} {
       allow read: if resource.data.userId == request.auth.uid

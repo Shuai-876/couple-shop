@@ -4,6 +4,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
@@ -25,7 +26,9 @@ export default function CustomerPage() {
   const [orders, setOrders] = useState([])
   const [tasks, setTasks] = useState([])
   const [claims, setClaims] = useState([]) // 自己的完成申請
+  const [blindBox, setBlindBox] = useState(null) // 盲盒設定 { enabled, price }
   const [confirming, setConfirming] = useState(null) // 正在確認購買的商品
+  const [blindBoxResult, setBlindBoxResult] = useState(null) // 盲盒揭曉結果
   const [claimingTask, setClaimingTask] = useState(null) // 正在申請完成的任務
   const [claimPhoto, setClaimPhoto] = useState('') // 申請要附的照片(壓縮後 base64)
   const [claimNote, setClaimNote] = useState('') // 申請留言
@@ -51,6 +54,13 @@ export default function CustomerPage() {
       setBalance(snap.exists() ? snap.data().balance : 0)
     })
   }, [user])
+
+  // 即時監聽盲盒設定
+  useEffect(() => {
+    return onSnapshot(doc(db, 'settings', 'blindBox'), (snap) => {
+      setBlindBox(snap.exists() ? snap.data() : null)
+    })
+  }, [])
 
   // 即時監聽商品列表(新上架的會自動出現),依建立時間倒序
   useEffect(() => {
@@ -162,6 +172,51 @@ export default function CustomerPage() {
     } finally {
       setBusy(false)
       setConfirming(null)
+    }
+  }
+
+  // 盲盒購買:隨機抽一個現有商品
+  async function buyBlindBox() {
+    if (!blindBox?.enabled || products.length === 0) return
+    setBusy(true)
+    try {
+      const picked = products[Math.floor(Math.random() * products.length)]
+      await runTransaction(db, async (tx) => {
+        const tokenRef = doc(db, 'tokens', user.uid)
+        const tokenSnap = await tx.get(tokenRef)
+        const current = tokenSnap.exists() ? tokenSnap.data().balance : 0
+
+        if (current < blindBox.price) {
+          throw new Error('餘額不足')
+        }
+
+        tx.update(tokenRef, {
+          balance: current - blindBox.price,
+          updatedAt: serverTimestamp(),
+        })
+
+        const orderRef = doc(collection(db, 'orders'))
+        tx.set(orderRef, {
+          userId: user.uid,
+          productId: picked.id,
+          productName: picked.name,
+          price: blindBox.price,
+          fromBlindBox: true,
+          createdAt: serverTimestamp(),
+        })
+      })
+      sendNotify({
+        toEmail: admin?.email,
+        toName: admin?.name,
+        title: `🎲 ${profile?.name || '她'}抽了盲盒!`,
+        message: `${profile?.name || '她'} 用 ${blindBox.price} 代幣抽盲盒,抽到了「${picked.name}」🎉 記得到管理頁的「待兌換訂單」幫她兌現喔 💕`,
+      })
+      setConfirming(null)
+      setBlindBoxResult(picked)
+    } catch (err) {
+      showToast(err.message === '餘額不足' ? '代幣不足,買不起盲盒喔 🥺' : '購買失敗,請再試一次')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -376,6 +431,24 @@ export default function CustomerPage() {
           </>
         )}
 
+        {/* 盲盒 */}
+        {blindBox?.enabled && products.length > 0 && (
+          <>
+            <h2 className="section-title">盲盒抽獎 🎲</h2>
+            <div
+              className="card blind-box-card"
+              onClick={() => !busy && setConfirming({ _blindBox: true, name: '盲盒', price: blindBox.price })}
+            >
+              <div className="blind-box-icon">❓</div>
+              <div className="blind-box-text">
+                <div className="blind-box-title">神秘盲盒</div>
+                <div className="blind-box-desc">隨機獲得一個商品!</div>
+                <div className="product-price">🪙 {blindBox.price}</div>
+              </div>
+            </div>
+          </>
+        )}
+
         {/* 商品 */}
         <h2 className="section-title">商品列表</h2>
         {products.length === 0 && <p className="empty">還沒有任何商品,等他上架吧～</p>}
@@ -420,17 +493,41 @@ export default function CustomerPage() {
         <div className="modal-mask" onClick={() => !busy && setConfirming(null)}>
           <div className="card modal" onClick={(e) => e.stopPropagation()}>
             <p className="modal-text">
-              要用 <b>🪙 {confirming.price}</b> 代幣購買<br />
-              <b>{confirming.name}</b> 嗎?
+              要用 <b>🪙 {confirming.price}</b> 代幣
+              {confirming._blindBox ? '抽盲盒嗎?' : (<>購買<br /><b>{confirming.name}</b> 嗎?</>)}
             </p>
+            {confirming._blindBox && (
+              <p className="hint" style={{ margin: '0 0 12px' }}>將隨機獲得一個商品 🎲</p>
+            )}
             <div className="modal-actions">
               <button className="btn btn-ghost" disabled={busy} onClick={() => setConfirming(null)}>
                 取消
               </button>
-              <button className="btn btn-primary" disabled={busy} onClick={() => buy(confirming)}>
-                {busy ? '處理中…' : '確定購買'}
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => confirming._blindBox ? buyBlindBox() : buy(confirming)}
+              >
+                {busy ? '處理中…' : confirming._blindBox ? '抽盲盒!' : '確定購買'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 盲盒揭曉彈窗 */}
+      {blindBoxResult && (
+        <div className="modal-mask" onClick={() => setBlindBoxResult(null)}>
+          <div className="card modal blind-box-reveal" onClick={(e) => e.stopPropagation()}>
+            <div className="reveal-emoji">🎉</div>
+            <p className="modal-text">恭喜抽到！</p>
+            {blindBoxResult.image && (
+              <img className="reveal-img" src={blindBoxResult.image} alt={blindBoxResult.name} />
+            )}
+            <p className="reveal-name">{blindBoxResult.name}</p>
+            <button className="btn btn-primary" onClick={() => setBlindBoxResult(null)}>
+              太棒了！
+            </button>
           </div>
         </div>
       )}

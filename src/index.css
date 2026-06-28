@@ -603,6 +603,67 @@ body {
   accent-color: var(--pink-deep);
 }
 
+/* ── 盲盒 ── */
+.blind-box-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  cursor: pointer;
+  background: linear-gradient(135deg, #fff0f5, #ffe3ec);
+  border: 2px dashed var(--pink);
+  transition: transform 0.1s ease;
+}
+.blind-box-card:active {
+  transform: scale(0.97);
+}
+.blind-box-icon {
+  font-size: 48px;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card);
+  border-radius: 16px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(240, 109, 146, 0.15);
+}
+.blind-box-title {
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--pink-deep);
+}
+.blind-box-desc {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 2px 0 6px;
+}
+
+/* 盲盒揭曉 */
+.blind-box-reveal {
+  text-align: center;
+}
+.reveal-emoji {
+  font-size: 48px;
+  margin-bottom: 4px;
+}
+.reveal-img {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 16px;
+  margin: 8px auto;
+  display: block;
+  box-shadow: 0 6px 20px rgba(240, 109, 146, 0.2);
+}
+.reveal-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--pink-deep);
+  margin: 8px 0 16px;
+}
+
 /* 放大檢視照片 */
 .photo-full {
   max-width: 92vw;
