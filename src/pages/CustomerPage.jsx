@@ -17,7 +17,7 @@ import { auth, db } from '../firebase'
 import { useAuth } from '../auth'
 import { compressImage } from '../utils/image'
 import { sendNotify } from '../email'
-import { LEVEL_STEP, computeLevel, levelProgress, mysteryEntitled, countdownToSep19 } from '../levels'
+import { LEVEL_STEP, computeLevel, levelProgress, mysteryEntitled, countdownToSep9 } from '../levels'
 
 export default function CustomerPage() {
   const { user, profile } = useAuth()
@@ -287,7 +287,7 @@ export default function CustomerPage() {
   const level = computeLevel(totalEarned)
   const { into, remain } = levelProgress(totalEarned)
   const availableMystery = mysteryEntitled(level) - myMystery.length
-  const { weeks: cdWeeks, days: cdDays } = countdownToSep19()
+  const { weeks: cdWeeks, days: cdDays } = countdownToSep9()
 
   // 兌換神祕獎品(升級獎勵,不花代幣):建立一筆 pending,等他準備
   async function redeemMystery() {

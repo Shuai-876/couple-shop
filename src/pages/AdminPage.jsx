@@ -19,7 +19,7 @@ import { auth, db } from '../firebase'
 import { useAuth } from '../auth'
 import { compressImage } from '../utils/image'
 import { sendNotify } from '../email'
-import { LEVEL_STEP, computeLevel, levelProgress, countdownToSep19 } from '../levels'
+import { LEVEL_STEP, computeLevel, levelProgress, countdownToSep9 } from '../levels'
 
 export default function AdminPage() {
   const { profile } = useAuth()
@@ -456,7 +456,7 @@ export default function AdminPage() {
   const herEarned = earnedOf(targetUid)
   const herLevel = computeLevel(herEarned)
   const herProg = levelProgress(herEarned)
-  const { weeks: cdWeeks, days: cdDays } = countdownToSep19()
+  const { weeks: cdWeeks, days: cdDays } = countdownToSep9()
 
   return (
     <div className="page">
