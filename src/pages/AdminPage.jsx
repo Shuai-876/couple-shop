@@ -28,6 +28,7 @@ export default function AdminPage() {
   const [customers, setCustomers] = useState([])
   const [targetUid, setTargetUid] = useState('')
   const [customerBalance, setCustomerBalance] = useState(null) // 對象目前的代幣餘額
+  const [customerEarned, setCustomerEarned] = useState(null) // 對象累積獲得(tokens 文件的 totalEarned)
 
   // 發代幣表單
   const [amount, setAmount] = useState('')
@@ -84,7 +85,9 @@ export default function AdminPage() {
       return
     }
     return onSnapshot(doc(db, 'tokens', targetUid), (snap) => {
-      setCustomerBalance(snap.exists() ? snap.data().balance : 0)
+      const data = snap.exists() ? snap.data() : {}
+      setCustomerBalance(data.balance || 0)
+      setCustomerEarned(typeof data.totalEarned === 'number' ? data.totalEarned : null)
     })
   }, [targetUid])
 
@@ -168,39 +171,34 @@ export default function AdminPage() {
     }
   }
 
-  // ── 發代幣:transaction 累加餘額(沒有文件就建立)+ 記一筆 tokenLog ──
+  // ── 發代幣:transaction 累加餘額 + 累積獲得(不再每次新增一筆 tokenLog)──
   async function giveTokens(e) {
     e.preventDefault()
     const n = parseInt(amount, 10)
     if (!targetUid) return showToast('請先選擇對象')
     if (!Number.isInteger(n) || n <= 0) return showToast('請輸入正整數數量')
 
-    // 發代幣前先記下她「累積獲得」,用來判斷是否升級
-    const oldEarned = earnedOf(targetUid)
+    // 舊帳號還沒有 totalEarned 欄位時,用舊紀錄總和當起點
+    const seedEarned = earnedOf(targetUid)
 
     setBusy(true)
     try {
+      let resolvedOld = seedEarned
       await runTransaction(db, async (tx) => {
         const tokenRef = doc(db, 'tokens', targetUid)
         const snap = await tx.get(tokenRef)
-        const current = snap.exists() ? snap.data().balance : 0
-        if (snap.exists()) {
-          tx.update(tokenRef, { balance: current + n, updatedAt: serverTimestamp() })
-        } else {
-          // 第一次發代幣時自動建立 tokens 文件
-          tx.set(tokenRef, { balance: current + n, updatedAt: serverTimestamp() })
-        }
-        // 記一筆發放紀錄(注意:在 transaction 內用 tx.set 寫,不要混用 addDoc)
-        const logRef = doc(collection(db, 'tokenLogs'))
-        tx.set(logRef, {
-          userId: targetUid,
-          amount: n,
-          reason: reason.trim() || '發代幣',
-          createdAt: serverTimestamp(),
-        })
+        const data = snap.exists() ? snap.data() : {}
+        const current = data.balance || 0
+        // 累積獲得改記在 tokens 文件;舊帳號沒這欄位時,用舊紀錄總和當起點
+        resolvedOld = typeof data.totalEarned === 'number' ? data.totalEarned : seedEarned
+        tx.set(
+          tokenRef,
+          { balance: current + n, totalEarned: resolvedOld + n, updatedAt: serverTimestamp() },
+          { merge: true },
+        )
       })
       // 若這次發代幣讓她升級,寄恭喜信
-      maybeCongratsLevelUp(targetUid, oldEarned, n)
+      maybeCongratsLevelUp(targetUid, resolvedOld, n)
       setAmount('')
       setReason('')
       showToast(`已發出 ${n} 代幣 🪙`)
@@ -340,12 +338,14 @@ export default function AdminPage() {
     }
   }
 
-  // ── 核准完成申請:transaction 加代幣 + 改狀態 + 記 tokenLog ──
+  // ── 核准完成申請:transaction 加代幣 + 累積獲得 + 改狀態(不再記 tokenLog)──
   async function approveClaim(claim) {
-    // 核准前先記下她「累積獲得」,用來判斷是否升級
-    const oldEarned = earnedOf(claim.userId)
+    // 舊帳號還沒有 totalEarned 欄位時,用舊紀錄總和當起點
+    const seedEarned = earnedOf(claim.userId)
     setBusy(true)
     try {
+      let resolvedOld = seedEarned
+      let rewardGiven = claim.reward
       await runTransaction(db, async (tx) => {
         const claimRef = doc(db, 'taskClaims', claim.id)
         const claimSnap = await tx.get(claimRef)
@@ -354,25 +354,20 @@ export default function AdminPage() {
           throw new Error('已處理')
         }
         const reward = claimSnap.data().reward
+        rewardGiven = reward
 
         const tokenRef = doc(db, 'tokens', claim.userId)
         const tokenSnap = await tx.get(tokenRef)
-        const current = tokenSnap.exists() ? tokenSnap.data().balance : 0
-        if (tokenSnap.exists()) {
-          tx.update(tokenRef, { balance: current + reward, updatedAt: serverTimestamp() })
-        } else {
-          tx.set(tokenRef, { balance: current + reward, updatedAt: serverTimestamp() })
-        }
+        const data = tokenSnap.exists() ? tokenSnap.data() : {}
+        const current = data.balance || 0
+        resolvedOld = typeof data.totalEarned === 'number' ? data.totalEarned : seedEarned
+        tx.set(
+          tokenRef,
+          { balance: current + reward, totalEarned: resolvedOld + reward, updatedAt: serverTimestamp() },
+          { merge: true },
+        )
 
         tx.update(claimRef, { status: 'approved', decidedAt: serverTimestamp() })
-
-        const logRef = doc(collection(db, 'tokenLogs'))
-        tx.set(logRef, {
-          userId: claim.userId,
-          amount: reward,
-          reason: `任務:${claim.taskTitle}`,
-          createdAt: serverTimestamp(),
-        })
       })
       // 寄信通知女友(best-effort,失敗不影響核准)
       const cust = customers.find((c) => c.uid === claim.userId)
@@ -383,7 +378,7 @@ export default function AdminPage() {
         message: `恭喜!你的任務「${claim.taskTitle}」已通過審核,獲得 ${claim.reward} 代幣 🎉 快去商城逛逛吧 💕`,
       })
       // 若這次任務獎勵讓她升級,另外寄一封恭喜信
-      maybeCongratsLevelUp(claim.userId, oldEarned, claim.reward)
+      maybeCongratsLevelUp(claim.userId, resolvedOld, rewardGiven)
       showToast(`已核准,發出 ${claim.reward} 代幣 🪙`)
     } catch (err) {
       showToast(err.message === '已處理' ? '這筆已經處理過了' : '核准失敗,請再試一次')
@@ -452,8 +447,8 @@ export default function AdminPage() {
   const pendingOrders = [...orders].sort(
     (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
   )
-  // 她目前的等級(用發代幣對象的累積獲得算)
-  const herEarned = earnedOf(targetUid)
+  // 她目前的等級:優先用 tokens 文件的 totalEarned,舊帳號沒有時後備用舊紀錄加總
+  const herEarned = customerEarned != null ? customerEarned : earnedOf(targetUid)
   const herLevel = computeLevel(herEarned)
   const herProg = levelProgress(herEarned)
   const { weeks: cdWeeks, days: cdDays } = countdownToSep9()
@@ -798,20 +793,6 @@ export default function AdminPage() {
           </ul>
         </section>
 
-        {/* 發代幣紀錄 */}
-        <section className="card form-card">
-          <h2 className="section-title">發代幣紀錄</h2>
-          {logs.length === 0 && <p className="empty">還沒有發過代幣</p>}
-          <ul className="history-list">
-            {logs.map((l) => (
-              <li className="history-item" key={l.id}>
-                <span>+{l.amount} 🪙</span>
-                <span className="history-reason">{l.reason}</span>
-                <span className="history-date">{fmtDate(l.createdAt)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
       </main>
 
       {/* 點開放大照片 */}

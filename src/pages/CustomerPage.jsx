@@ -36,7 +36,10 @@ export default function CustomerPage() {
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState('')
   const [admin, setAdmin] = useState(null) // 管理員資料(寄信通知用)
-  const [totalEarned, setTotalEarned] = useState(0) // 累積總共獲得的代幣(算等級用)
+  // 累積總共獲得的代幣(算等級用):優先用 tokens 文件的 totalEarned 欄位,
+  // 舊帳號還沒有這欄位時,後備用舊的 tokenLogs 加總
+  const [earnedDoc, setEarnedDoc] = useState(null)
+  const [earnedLogs, setEarnedLogs] = useState(0)
   const [myMystery, setMyMystery] = useState([]) // 自己的神祕獎品兌換紀錄
   const photoRef = useRef(null)
 
@@ -51,7 +54,9 @@ export default function CustomerPage() {
   useEffect(() => {
     if (!user) return
     return onSnapshot(doc(db, 'tokens', user.uid), (snap) => {
-      setBalance(snap.exists() ? snap.data().balance : 0)
+      const data = snap.exists() ? snap.data() : {}
+      setBalance(data.balance || 0)
+      setEarnedDoc(typeof data.totalEarned === 'number' ? data.totalEarned : null)
     })
   }, [user])
 
@@ -102,13 +107,14 @@ export default function CustomerPage() {
     })
   }, [user])
 
-  // 即時監聽自己的代幣發放紀錄(tokenLogs),加總出「累積獲得」算等級
+  // 後備:舊帳號的累積獲得只記在 tokenLogs,沒有 totalEarned 欄位時用這個加總
+  // (新發的代幣不再寫 tokenLogs,改記在 tokens 文件的 totalEarned)
   useEffect(() => {
     if (!user) return
     const q = query(collection(db, 'tokenLogs'), where('userId', '==', user.uid))
     return onSnapshot(q, (snap) => {
       const sum = snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0)
-      setTotalEarned(sum)
+      setEarnedLogs(sum)
     })
   }, [user])
 
@@ -283,6 +289,8 @@ export default function CustomerPage() {
     }
   }
 
+  // 累積獲得:有 totalEarned 欄位就用它,否則後備用舊紀錄加總
+  const totalEarned = earnedDoc != null ? earnedDoc : earnedLogs
   // 等級計算:由累積獲得算等級;每 5 級解鎖一個神祕獎品
   const level = computeLevel(totalEarned)
   const { into, remain } = levelProgress(totalEarned)
