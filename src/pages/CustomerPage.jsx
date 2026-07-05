@@ -295,7 +295,7 @@ export default function CustomerPage() {
   const level = computeLevel(totalEarned)
   const { into, remain } = levelProgress(totalEarned)
   const availableMystery = mysteryEntitled(level) - myMystery.length
-  const { weeks: cdWeeks, days: cdDays } = countdownToSep9()
+  const { days: cdDays } = countdownToSep9()
 
   // 兌換神祕獎品(升級獎勵,不花代幣):建立一筆 pending,等他準備
   async function redeemMystery() {
@@ -358,7 +358,7 @@ export default function CustomerPage() {
         <section className="card level-card">
           <div className="level-top">
             <span className="level-badge">Lv.{level}</span>
-            <span className="level-countdown">⏰ {cdWeeks}週{cdDays}天</span>
+            <span className="level-countdown">⏰ 倒數 {cdDays} 天</span>
             <span className="level-earned">累積獲得 {totalEarned} 🪙</span>
           </div>
           <div className="level-bar">

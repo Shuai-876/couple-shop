@@ -451,7 +451,7 @@ export default function AdminPage() {
   const herEarned = customerEarned != null ? customerEarned : earnedOf(targetUid)
   const herLevel = computeLevel(herEarned)
   const herProg = levelProgress(herEarned)
-  const { weeks: cdWeeks, days: cdDays } = countdownToSep9()
+  const { days: cdDays } = countdownToSep9()
 
   return (
     <div className="page">
@@ -467,7 +467,7 @@ export default function AdminPage() {
         <section className="card level-card">
           <div className="level-top">
             <span className="level-badge">Lv.{herLevel}</span>
-            <span className="level-countdown">⏰ {cdWeeks}週{cdDays}天</span>
+            <span className="level-countdown">⏰ 倒數 {cdDays} 天</span>
             <span className="level-earned">累積獲得 {herEarned} 🪙</span>
           </div>
           <div className="level-bar">
