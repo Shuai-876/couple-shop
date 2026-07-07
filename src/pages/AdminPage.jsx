@@ -55,7 +55,6 @@ export default function AdminPage() {
   // 列表 / 統計資料
   const [products, setProducts] = useState([])
   const [orders, setOrders] = useState([])
-  const [logs, setLogs] = useState([])
   const [tasks, setTasks] = useState([])
   const [pendingClaims, setPendingClaims] = useState([]) // 待審核的完成申請
   const [pendingMystery, setPendingMystery] = useState([]) // 待處理的神祕獎品兌換
@@ -87,7 +86,12 @@ export default function AdminPage() {
     return onSnapshot(doc(db, 'tokens', targetUid), (snap) => {
       const data = snap.exists() ? snap.data() : {}
       setCustomerBalance(data.balance || 0)
-      setCustomerEarned(typeof data.totalEarned === 'number' ? data.totalEarned : null)
+      if (typeof data.totalEarned === 'number') {
+        setCustomerEarned(data.totalEarned)
+      } else {
+        // 舊帳號還沒遷移:一次性查她的舊紀錄加總當累積獲得
+        earnedFromLogs(targetUid).then(setCustomerEarned)
+      }
     })
   }, [targetUid])
 
@@ -116,13 +120,6 @@ export default function AdminPage() {
     })
   }, [])
 
-  // 即時監聽發代幣紀錄(統計總發出代幣 + 顯示紀錄)
-  useEffect(() => {
-    const q = query(collection(db, 'tokenLogs'), orderBy('createdAt', 'desc'))
-    return onSnapshot(q, (snap) => {
-      setLogs(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    })
-  }, [])
 
   // 即時監聽任務列表
   useEffect(() => {
@@ -152,9 +149,12 @@ export default function AdminPage() {
     })
   }, [])
 
-  // 算某對象目前「累積獲得」的代幣(從 tokenLogs 加總)
-  function earnedOf(uid) {
-    return logs.filter((l) => l.userId === uid).reduce((s, l) => s + (l.amount || 0), 0)
+  // 舊帳號後備:只在需要時查「單一對象」的 tokenLogs 加總(不再抓整包)
+  // 新帳號累積獲得都記在 tokens.totalEarned,不會用到這個
+  async function earnedFromLogs(uid) {
+    if (!uid) return 0
+    const snap = await getDocs(query(collection(db, 'tokenLogs'), where('userId', '==', uid)))
+    return snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0)
   }
 
   // 升級偵測:某對象累積獲得從 oldEarned 再加 addAmount 後若跨級,寄恭喜信
@@ -178,11 +178,10 @@ export default function AdminPage() {
     if (!targetUid) return showToast('請先選擇對象')
     if (!Number.isInteger(n) || n <= 0) return showToast('請輸入正整數數量')
 
-    // 舊帳號還沒有 totalEarned 欄位時,用舊紀錄總和當起點
-    const seedEarned = earnedOf(targetUid)
-
     setBusy(true)
     try {
+      // 舊帳號還沒有 totalEarned 欄位時,查她的舊紀錄總和當起點(新帳號不會用到)
+      const seedEarned = await earnedFromLogs(targetUid)
       let resolvedOld = seedEarned
       await runTransaction(db, async (tx) => {
         const tokenRef = doc(db, 'tokens', targetUid)
@@ -340,10 +339,10 @@ export default function AdminPage() {
 
   // ── 核准完成申請:transaction 加代幣 + 累積獲得 + 改狀態(不再記 tokenLog)──
   async function approveClaim(claim) {
-    // 舊帳號還沒有 totalEarned 欄位時,用舊紀錄總和當起點
-    const seedEarned = earnedOf(claim.userId)
     setBusy(true)
     try {
+      // 舊帳號還沒有 totalEarned 欄位時,查她的舊紀錄總和當起點(新帳號不會用到)
+      const seedEarned = await earnedFromLogs(claim.userId)
       let resolvedOld = seedEarned
       let rewardGiven = claim.reward
       await runTransaction(db, async (tx) => {
@@ -447,8 +446,8 @@ export default function AdminPage() {
   const pendingOrders = [...orders].sort(
     (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
   )
-  // 她目前的等級:優先用 tokens 文件的 totalEarned,舊帳號沒有時後備用舊紀錄加總
-  const herEarned = customerEarned != null ? customerEarned : earnedOf(targetUid)
+  // 她目前的等級:用 tokens 文件的 totalEarned(舊帳號會在監聽時一次性補算填入 customerEarned)
+  const herEarned = customerEarned || 0
   const herLevel = computeLevel(herEarned)
   const herProg = levelProgress(herEarned)
   const { days: cdDays } = countdownToSep9()
