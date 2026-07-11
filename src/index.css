@@ -671,3 +671,118 @@ body {
   border-radius: 14px;
   object-fit: contain;
 }
+
+/* ── 特效遮罩:升級 / 盲盒開獎 ── */
+.fx-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+  animation: fx-fade-in 0.25s ease;
+}
+@keyframes fx-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 升級:金色 / 粉色慶祝 */
+.fx-levelup {
+  background: radial-gradient(circle at center, rgba(255, 214, 102, 0.96), rgba(255, 145, 175, 0.96));
+}
+.fx-levelup-inner {
+  animation: fx-pop 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+.fx-sparkles {
+  font-size: 40px;
+  animation: fx-wobble 1s ease-in-out infinite;
+}
+.fx-levelup-title {
+  font-size: 44px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 2px;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.15);
+}
+.fx-levelup-badge {
+  display: inline-block;
+  margin: 8px 0 4px;
+  font-size: 30px;
+  font-weight: 800;
+  color: #d81b60;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 22px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+.fx-levelup-gifttext {
+  margin-top: 14px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+.fx-levelup-gift {
+  width: 200px;
+  max-width: 70vw;
+  margin-top: 10px;
+  border-radius: 16px;
+  border: 4px solid #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  animation: fx-pop 0.6s 0.15s backwards cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+.fx-levelup-note {
+  margin-top: 10px;
+  font-size: 15px;
+  color: #fff;
+}
+
+/* 盲盒:神秘搖晃(紫藍) */
+.fx-blindbox {
+  background: radial-gradient(circle at center, rgba(126, 87, 194, 0.96), rgba(49, 27, 90, 0.97));
+}
+.fx-blindbox-box {
+  font-size: 88px;
+  animation: fx-shake 0.5s ease-in-out infinite;
+}
+.fx-blindbox-text {
+  margin-top: 18px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 1px;
+}
+.fx-blindbox-qs {
+  margin-top: 12px;
+  display: flex;
+  gap: 16px;
+}
+.fx-blindbox-qs span {
+  font-size: 28px;
+  font-weight: 900;
+  color: #ffd166;
+  animation: fx-bounce 0.8s ease-in-out infinite;
+}
+.fx-blindbox-qs span:nth-child(2) { animation-delay: 0.15s; }
+.fx-blindbox-qs span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes fx-pop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes fx-wobble {
+  0%, 100% { transform: rotate(-8deg); }
+  50% { transform: rotate(8deg); }
+}
+@keyframes fx-shake {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  25% { transform: translateX(-8px) rotate(-10deg); }
+  75% { transform: translateX(8px) rotate(10deg); }
+}
+@keyframes fx-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}

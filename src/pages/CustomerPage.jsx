@@ -41,6 +41,10 @@ export default function CustomerPage() {
   const [earnedDoc, setEarnedDoc] = useState(null)
   const [earnedLogs, setEarnedLogs] = useState(0)
   const [myMystery, setMyMystery] = useState([]) // 自己的神祕獎品兌換紀錄
+  const [levelUpGift, setLevelUpGift] = useState(null) // 管理員設定的升級禮物 { image, note }
+  const [levelUpFx, setLevelUpFx] = useState(null) // 升級特效顯示中 { level }
+  const [blindBoxSpinning, setBlindBoxSpinning] = useState(false) // 盲盒開獎特效中
+  const prevLevelRef = useRef(null) // 上一次的等級,用來偵測升級
   const photoRef = useRef(null)
 
   // 載入管理員資料(role == admin),送出申請時用來寄信通知他
@@ -128,6 +132,30 @@ export default function CustomerPage() {
       setMyMystery(list)
     })
   }, [user])
+
+  // 即時監聽管理員設定的「升級禮物」
+  useEffect(() => {
+    return onSnapshot(doc(db, 'settings', 'levelUpGift'), (snap) => {
+      setLevelUpGift(snap.exists() && snap.data().image ? snap.data() : null)
+    })
+  }, [])
+
+  // 偵測升級:等級一往上跳就播 3 秒升級特效
+  // (balance === null 代表資料還沒載入,先不判斷,避免載入時誤觸發)
+  useEffect(() => {
+    if (balance === null) return
+    const te = earnedDoc != null ? earnedDoc : earnedLogs
+    const lv = computeLevel(te)
+    if (prevLevelRef.current === null) {
+      prevLevelRef.current = lv // 第一次載入只記錄,不觸發
+      return
+    }
+    if (lv > prevLevelRef.current) {
+      setLevelUpFx({ level: lv })
+      setTimeout(() => setLevelUpFx(null), 3000)
+    }
+    prevLevelRef.current = lv
+  }, [earnedDoc, earnedLogs, balance])
 
   // 顯示短暫提示訊息
   function showToast(msg) {
@@ -218,7 +246,12 @@ export default function CustomerPage() {
         message: `${profile?.name || '她'} 用 ${blindBox.price} 代幣抽盲盒,抽到了「${picked.name}」🎉 記得到管理頁的「待兌換訂單」幫她兌現喔 💕`,
       })
       setConfirming(null)
-      setBlindBoxResult(picked)
+      // 先播 3 秒盲盒開獎特效,再揭曉結果
+      setBlindBoxSpinning(true)
+      setTimeout(() => {
+        setBlindBoxSpinning(false)
+        setBlindBoxResult(picked)
+      }, 3000)
     } catch (err) {
       showToast(err.message === '餘額不足' ? '代幣不足,買不起盲盒喔 🥺' : '購買失敗,請再試一次')
     } finally {
@@ -586,6 +619,39 @@ export default function CustomerPage() {
                 {busy ? '送出中…' : '送出申請'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 升級特效(金色慶祝,揭曉升級禮物) */}
+      {levelUpFx && (
+        <div className="fx-mask fx-levelup">
+          <div className="fx-levelup-inner">
+            <div className="fx-sparkles">✨🎉✨</div>
+            <div className="fx-levelup-title">LEVEL UP!</div>
+            <div className="fx-levelup-badge">Lv.{levelUpFx.level}</div>
+            {levelUpGift?.image ? (
+              <>
+                <div className="fx-levelup-gifttext">🎁 你的升級禮物</div>
+                <img className="fx-levelup-gift" src={levelUpGift.image} alt="升級禮物" />
+                {levelUpGift.note && <div className="fx-levelup-note">{levelUpGift.note}</div>}
+              </>
+            ) : (
+              <div className="fx-levelup-gifttext">恭喜升級 🎉</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 盲盒開獎特效(神秘搖晃,紫藍色,3 秒) */}
+      {blindBoxSpinning && (
+        <div className="fx-mask fx-blindbox">
+          <div className="fx-blindbox-box">❓</div>
+          <div className="fx-blindbox-text">盲盒開獎中…</div>
+          <div className="fx-blindbox-qs">
+            <span>？</span>
+            <span>？</span>
+            <span>？</span>
           </div>
         </div>
       )}

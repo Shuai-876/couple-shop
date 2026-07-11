@@ -45,6 +45,14 @@ export default function AdminPage() {
   const [blindBox, setBlindBox] = useState({ enabled: false, price: '' })
   const [bbBusy, setBbBusy] = useState(false)
 
+  // 下一次升級禮物
+  const [levelUpGift, setLevelUpGift] = useState(null) // { image, note }
+  const [giftImageData, setGiftImageData] = useState('')
+  const [giftNote, setGiftNote] = useState('')
+  const [giftBusy, setGiftBusy] = useState(false)
+  const [giftImgBusy, setGiftImgBusy] = useState(false)
+  const giftFileRef = useRef(null)
+
   // 新增任務表單
   const [tTitle, setTTitle] = useState('')
   const [tReward, setTReward] = useState('')
@@ -102,6 +110,15 @@ export default function AdminPage() {
         const data = snap.data()
         setBlindBox({ enabled: !!data.enabled, price: data.price ?? '' })
       }
+    })
+  }, [])
+
+  // 即時監聽「下一次升級禮物」設定
+  useEffect(() => {
+    return onSnapshot(doc(db, 'settings', 'levelUpGift'), (snap) => {
+      const d = snap.exists() ? snap.data() : null
+      setLevelUpGift(d && d.image ? d : null)
+      if (d) setGiftNote(d.note || '')
     })
   }, [])
 
@@ -283,6 +300,56 @@ export default function AdminPage() {
       showToast('儲存失敗,請再試一次')
     } finally {
       setBbBusy(false)
+    }
+  }
+
+  // ── 下一次升級禮物:選照片壓縮 ──
+  async function onPickGiftImage(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setGiftImgBusy(true)
+    try {
+      setGiftImageData(await compressImage(file))
+    } catch {
+      showToast('圖片處理失敗,換一張試試')
+    } finally {
+      setGiftImgBusy(false)
+    }
+  }
+
+  // 儲存升級禮物(存到 settings/levelUpGift,她升級時揭曉)
+  async function saveLevelUpGift(e) {
+    e.preventDefault()
+    const image = giftImageData || levelUpGift?.image || ''
+    if (!image) return showToast('請先選一張禮物照片')
+    setGiftBusy(true)
+    try {
+      await setDoc(doc(db, 'settings', 'levelUpGift'), {
+        image,
+        note: giftNote.trim(),
+        updatedAt: serverTimestamp(),
+      })
+      setGiftImageData('')
+      if (giftFileRef.current) giftFileRef.current.value = ''
+      showToast('已設定下一次升級禮物 🎁')
+    } catch {
+      showToast('儲存失敗,請再試一次')
+    } finally {
+      setGiftBusy(false)
+    }
+  }
+
+  // 移除目前設定的升級禮物
+  async function clearLevelUpGift() {
+    if (!confirm('確定要移除目前設定的升級禮物嗎?')) return
+    try {
+      await deleteDoc(doc(db, 'settings', 'levelUpGift'))
+      setGiftImageData('')
+      setGiftNote('')
+      if (giftFileRef.current) giftFileRef.current.value = ''
+      showToast('已移除升級禮物')
+    } catch {
+      showToast('移除失敗')
     }
   }
 
@@ -703,6 +770,51 @@ export default function AdminPage() {
               </li>
             ))}
           </ul>
+        </section>
+
+        {/* 下一次升級禮物 */}
+        <section className="card form-card">
+          <h2 className="section-title">下一次升級禮物 🎁</h2>
+          <div className="hint" style={{ marginTop: 0 }}>
+            上傳一張照片,她下次升級時會有特效揭曉這個禮物。
+          </div>
+          {levelUpGift?.image && (
+            <div className="gift-current">
+              <img className="preview-img" src={levelUpGift.image} alt="目前的升級禮物" />
+              {levelUpGift.note && <div className="hint">說明:{levelUpGift.note}</div>}
+            </div>
+          )}
+          <form onSubmit={saveLevelUpGift}>
+            <label className="field-label">{levelUpGift?.image ? '換一張照片' : '禮物照片'}</label>
+            <input
+              className="input"
+              type="file"
+              accept="image/*"
+              ref={giftFileRef}
+              onChange={onPickGiftImage}
+            />
+            {giftImgBusy && <div className="hint">壓縮圖片中…</div>}
+            {giftImageData && <img className="preview-img" src={giftImageData} alt="預覽" />}
+
+            <label className="field-label">禮物說明(可留空)</label>
+            <input
+              className="input"
+              value={giftNote}
+              onChange={(e) => setGiftNote(e.target.value)}
+              placeholder="例如:一起看電影 🎬"
+            />
+
+            <div className="modal-actions" style={{ marginTop: 12 }}>
+              {levelUpGift?.image && (
+                <button type="button" className="btn btn-ghost" onClick={clearLevelUpGift}>
+                  移除
+                </button>
+              )}
+              <button className="btn btn-primary" disabled={giftBusy || giftImgBusy}>
+                {giftBusy ? '儲存中…' : '儲存禮物'}
+              </button>
+            </div>
+          </form>
         </section>
 
         {/* 盲盒設定 */}
