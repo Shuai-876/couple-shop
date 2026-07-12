@@ -778,9 +778,6 @@ export default function AdminPage() {
                 <button className="btn btn-ghost btn-sm" onClick={() => editTaskReward(t)}>
                   編輯
                 </button>
-                <button className="btn btn-ghost btn-sm" onClick={() => toggleTask(t)}>
-                  {t.active === false ? '啟用' : '停用'}
-                </button>
                 <button className="btn btn-danger btn-sm" onClick={() => removeTask(t.id)}>
                   刪除
                 </button>
