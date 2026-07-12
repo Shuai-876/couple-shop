@@ -384,6 +384,20 @@ export default function AdminPage() {
     }
   }
 
+  // 編輯任務的獎勵代幣
+  async function editTaskReward(t) {
+    const input = prompt(`修改任務「${t.title}」的獎勵代幣:`, String(t.reward))
+    if (input === null) return // 按取消
+    const reward = parseInt(input, 10)
+    if (!Number.isInteger(reward) || reward <= 0) return showToast('請輸入正整數')
+    try {
+      await updateDoc(doc(db, 'tasks', t.id), { reward })
+      showToast('已更新獎勵 🪙')
+    } catch {
+      showToast('更新失敗')
+    }
+  }
+
   // 切換任務上架/停用
   async function toggleTask(t) {
     try {
@@ -761,6 +775,9 @@ export default function AdminPage() {
                   {t.active === false && <span className="off-badge">已停用</span>}
                 </span>
                 <span className="manage-price">+{t.reward} 🪙</span>
+                <button className="btn btn-ghost btn-sm" onClick={() => editTaskReward(t)}>
+                  編輯
+                </button>
                 <button className="btn btn-ghost btn-sm" onClick={() => toggleTask(t)}>
                   {t.active === false ? '啟用' : '停用'}
                 </button>
